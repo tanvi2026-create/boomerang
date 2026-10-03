@@ -1,0 +1,39 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Boomerang</title>
+<style>:root{--bg:#f3f4f8;--ink:#14121f;--mut:#6b6a7a;--card:#fff;--line:#e2e2ea;--acc:#3b4cff}@media(prefers-color-scheme:dark){:root{--bg:#0e0d16;--ink:#f1f0f8;--mut:#9b9aad;--card:#1a1926;--line:#2b2a3b;--acc:#7c88ff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Arial,sans-serif}main{max-width:560px;margin:0 auto;padding:22px 16px 40px}
+h1{font:900 30px Arial Black,Arial;margin:0 0 14px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}.mut{color:var(--mut)}
+label{display:block;font-weight:700;margin:10px 0 4px}input{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:12px;font:inherit}
+button{border:0;border-radius:12px;padding:12px 18px;background:var(--acc);color:#fff;font:700 15px Arial;cursor:pointer;margin-top:12px}button:focus-visible,input:focus-visible{outline:3px solid var(--acc)}
+.m{background:var(--bg);border-radius:14px;padding:9px 12px;margin:6px 0;max-width:85%}.m.r{background:var(--acc);color:#fff;margin-left:auto}.b{background:#ff5a3c;color:#fff;border-radius:99px;padding:2px 9px;font-size:12px;font-weight:700}</style></head>
+<body><main><h1>Boomerang</h1><div id="v"></div></main>
+<script>
+const $=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+const V=document.getElementById('v'),api=(u,o)=>fetch(u,o).then(r=>r.json().then(j=>({ok:r.ok,...j})));
+const post=(u,b)=>api(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+let keys=[];try{keys=JSON.parse(localStorage.getItem('bk')||'[]')}catch{}
+const saveKeys=()=>{try{localStorage.setItem('bk',JSON.stringify(keys))}catch{}};
+const field=(p,l,ph)=>{const w=$('div'),a=$('label',0,l),i=$('input');i.placeholder=ph;p.append(w);w.append(a,i);return i};
+const m=p=>location.pathname.match(/^\/s\/(BMR-[A-Z0-9]{5})$/);
+async function finder(code){V.innerHTML='';const d=await api('/api/sticker/'+code),c=$('div','card');V.append(c);
+ if(d.state==='unknown'){c.append($('b',0,'Unknown sticker'),$('p','mut','This code does not exist.'));return}
+ if(d.state==='unclaimed'){c.append($('b',0,'Claim this sticker'),$('p','mut','Not linked to anyone yet. If this is your new sticker, register it. Your details stay private.'));
+  const it=field(c,'What is it stuck on?','Blue Chem notebook'),ct=field(c,'Your email or phone','you@college.edu'),b=$('button',0,'Activate sticker'),e=$('p','mut');c.append(b,e);
+  b.onclick=async()=>{const r=await post('/api/sticker/'+code+'/claim',{item:it.value,contact:ct.value});if(!r.ok)return e.textContent=r.error;keys.push(r.key);saveKeys();
+   try{Notification.requestPermission()}catch{};location.href='/'};return}
+ const draw=(d)=>{c.innerHTML='';c.append($('b',0,'You found: '+d.item),$('p','mut','The owner stays anonymous. Send a message and they get notified.'));
+  d.msgs.forEach(x=>c.append($('div','m'+(x.from==='finder'?' r':''),x.text)));
+  const i=field(c,'Message to the owner','I found this near the canteen'),b=$('button',0,'Send'),e=$('p','mut');c.append(b,e);
+  b.onclick=async()=>{const r=await post('/api/sticker/'+code+'/message',{text:i.value});if(!r.ok)return e.textContent=r.error;draw(await api('/api/sticker/'+code))}};
+ draw(d)}
+let seen={};
+async function owner(first){const d=await api('/api/inbox?keys='+keys.join(','));V.innerHTML='';
+ if(!d.items||!d.items.length){const c=$('div','card');c.append($('b',0,'No stickers yet'),$('p','mut','Scan a new Boomerang sticker with your phone camera to claim it.'));V.append(c);return}
+ d.items.forEach(s=>{const c=$('div','card'),n=s.msgs.filter(x=>x.from==='finder').length;
+  c.append($('b',0,s.item+' '),$('span','mut',s.code));if(n)c.append($('span','b',' '+n+' from finders'));
+  s.msgs.forEach(x=>c.append($('div','m'+(x.from==='owner'?' r':''),x.text)));
+  if(!first&&seen[s.code]!=null&&n>seen[s.code]){try{new Notification('Boomerang',{body:'Someone found your '+s.item})}catch{}}
+  seen[s.code]=n;
+  if(n){const i=$('input');i.placeholder='Reply to the finder';const b=$('button',0,'Reply');c.append(i,b);b.onclick=async()=>{await post('/api/sticker/'+s.code+'/reply',{key:s.key,text:i.value});owner(true)}}
+  V.append(c)})}
+const c=m();if(c)finder(c[1]);else{owner(true);setInterval(()=>{if(!document.querySelector('input:focus'))owner(false)},6000)}
+</script></body></html>
